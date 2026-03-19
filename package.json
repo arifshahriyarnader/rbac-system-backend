@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "seed": "ts-node src/database/seed/seed.ts",
     "build": "tsc",
     "prod": "node dist/server.js"
   },
@@ -21,6 +22,7 @@
     "pg": "^8.20.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
