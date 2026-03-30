@@ -8,6 +8,7 @@ CREATE TABLE
         manager_id UUID REFERENCES users (id),
         created_by UUID REFERENCES users (id),
         status VARCHAR(20) DEFAULT 'active',
+        last_login TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
