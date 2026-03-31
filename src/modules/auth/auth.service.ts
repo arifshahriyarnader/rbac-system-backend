@@ -107,3 +107,30 @@ export const login = async (data: LoginInput, ip?: string) => {
     },
   };
 };
+
+export const logout = async (refreshToken: string) => {
+  const sessionResult = await databaseConnection.query(
+    `SELECT id, user_id FROM sessions WHERE refresh_token = $1 AND is_revoked = false`,
+    [refreshToken],
+  );
+  const session = sessionResult.rows[0];
+
+  if (!session) {
+    throw new ApiError(401, "Invalid or expired session");
+  }
+
+  await databaseConnection.query(
+    `UPDATE sessions SET is_revoked = true WHERE refresh_token = $1`,
+    [refreshToken],
+  );
+  await databaseConnection.query(
+    `INSERT INTO audit_logs (actor_id, action, module, metadata, ip_address) VALUES ($1, $2, $3, $4, $5)`,
+    [
+      session.user_id,
+      "user.logout",
+      "auth",
+      JSON.stringify({ sessionId: session.id }),
+      null,
+    ],
+  );
+};
