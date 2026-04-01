@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../../utlis/asyncHandler";
 import { login, logout } from "./auth.service";
 import { ApiError } from "../../utlis/ApiError";
+import { send } from "node:process";
+import { sendResponse } from "../../utlis/apiResponse";
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -16,13 +18,9 @@ export const loginController = asyncHandler(
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      data: {
-        accessToken: result.accessToken,
-        user: result.user,
-      },
+    sendResponse(res, 200, "Login successful", {
+      accessToken: result.accessToken,
+      user: result.user,
     });
   },
 );
@@ -41,9 +39,7 @@ export const logoutController = asyncHandler(
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
-    res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
+
+    sendResponse(res, 200, "Logged out successfully");
   },
 );
