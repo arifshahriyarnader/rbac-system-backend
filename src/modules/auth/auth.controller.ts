@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utlis/asyncHandler";
-import { login, logout } from "./auth.service";
+import { login, logout, refreshToken } from "./auth.service";
 import { ApiError } from "../../utlis/ApiError";
-import { send } from "node:process";
 import { sendResponse } from "../../utlis/apiResponse";
+import { send } from "node:process";
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -41,5 +41,20 @@ export const logoutController = asyncHandler(
     });
 
     sendResponse(res, 200, "Logged out successfully");
+  },
+);
+
+export const refreshTokenController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const token = req.cookies?.refreshToken;
+
+    if (!token) {
+      throw new ApiError(400, "No refresh token found");
+    }
+    const result = await refreshToken(token);
+    sendResponse(res, 200, "Token refreshed successfully", {
+      accessToken: result.accessToken,
+      user: result.user,
+    });
   },
 );
