@@ -228,3 +228,49 @@ export const refreshToken = async (token: string) => {
     },
   };
 };
+
+export const getMe = async (userId: string) => {
+  const userResult = await databaseConnection.query(
+    `SELECT
+      u.id,
+      u.name,
+      u.email,
+      u.status,
+      u.last_login,
+      u.created_at,
+      r.name AS role
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [userId],
+  );
+  const user = userResult.rows[0];
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+  const permissionsResult = await databaseConnection.query(
+    `SELECT DISTINCT p.atom
+     FROM permissions p
+     JOIN role_permissions rp ON rp.permission_id = p.id
+     JOIN users u ON u.role_id = rp.role_id
+     LEFT JOIN user_permissions up
+       ON up.permission_id = p.id
+       AND up.user_id = $1
+     WHERE u.id = $1
+     AND COALESCE(up.granted, true) = true`,
+    [userId],
+  );
+  const permissions = permissionsResult.rows.map(
+    (row: { atom: string }) => row.atom,
+  );
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    permissions,
+    lastLogin: user.last_login,
+    createdAt: user.created_at,
+  };
+};

@@ -13,7 +13,6 @@ export const errorHandler = (
       message: err.message,
     });
   }
-
   console.error("Unexpected error:", err);
   return res.status(500).json({
     success: false,

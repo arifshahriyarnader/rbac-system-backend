@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utlis/asyncHandler";
-import { login, logout, refreshToken } from "./auth.service";
+import { getMe, login, logout, refreshToken } from "./auth.service";
 import { ApiError } from "../../utlis/ApiError";
 import { sendResponse } from "../../utlis/apiResponse";
 import { send } from "node:process";
@@ -56,5 +56,13 @@ export const refreshTokenController = asyncHandler(
       accessToken: result.accessToken,
       user: result.user,
     });
+  },
+);
+
+export const getMeController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const user = await getMe(userId);
+    sendResponse(res, 200, "User fetched successfully", { user });
   },
 );
