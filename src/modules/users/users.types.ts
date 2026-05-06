@@ -13,3 +13,12 @@ export interface UserRow {
 export interface UserDetailRow extends UserRow {
   permissions: string[];
 }
+
+export interface CreatedUserRow {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: Date;
+}

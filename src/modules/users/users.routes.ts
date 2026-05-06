@@ -2,9 +2,12 @@ import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate";
 import { requirePermission } from "../../middlewares/requirePermission";
 import {
+  createUserController,
   getAllUsersController,
   getUserByIdController,
 } from "./users.controller";
+import { createUserSchema } from "./validators/createUser.validator";
+import { validate } from "../../middlewares/validate";
 
 const router = Router();
 
@@ -16,5 +19,11 @@ router.get(
   getAllUsersController,
 );
 router.get("/:id", requirePermission("view:users"), getUserByIdController);
+router.post(
+  "/create-user",
+  requirePermission("manage:users"),
+  validate(createUserSchema),
+  createUserController,
+);
 
 export default router;

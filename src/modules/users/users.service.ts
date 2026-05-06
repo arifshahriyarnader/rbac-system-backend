@@ -1,6 +1,8 @@
+import bcrypt from "bcrypt";
 import { databaseConnection } from "../../database/connection";
 import { ApiError } from "../../utlis/ApiError";
-import { UserRow } from "./users.types";
+import { CreatedUserRow, UserRow } from "./users.types";
+import { CreateUserInput } from "./validators/createUser.validator";
 
 export const getAllUsers = async (caller: { id: string; role: string }) => {
   if (caller.role === "admin") {
@@ -116,5 +118,97 @@ export const getUserById = async (
   return {
     ...user,
     permissions,
+  };
+};
+
+export const createUser = async (
+  data: CreateUserInput,
+  caller: {
+    id: string;
+    role: string;
+  },
+) => {
+  const { name, email, password, role } = data;
+
+  if (caller.role === "manager") {
+    if (role === "manager") {
+      throw new ApiError(403, "Managers can only create agents or customers");
+    }
+  }
+
+  const existingUser = await databaseConnection.query(
+    `SELECT id FROM users WHERE email = $1`,
+    [email],
+  );
+
+  if (existingUser.rows.length > 0) {
+    throw new ApiError(409, "Email already exists");
+  }
+
+  const roleResult = await databaseConnection.query(
+    `SELECT id FROM roles WHERE name = $1`,
+    [role],
+  );
+
+  const roleRow = roleResult.rows[0];
+
+  if (!roleRow) {
+    throw new ApiError(400, "Invalid role specified");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const newUserResult = await databaseConnection.query<CreatedUserRow>(
+    `INSERT INTO users (
+      name,
+      email,
+      password_hash,
+      role_id,
+      manager_id,
+      created_by,
+      status
+    ) VALUES ($1, $2, $3, $4, $5, $6, 'active')
+    RETURNING
+      id,
+      name,
+      email,
+      status,
+      created_at`,
+    [
+      name,
+      email,
+      passwordHash,
+      roleRow.id,
+      caller.role === "manager" ? caller.id : null,
+      caller.id,
+    ],
+  );
+
+  const newUser = newUserResult.rows[0];
+
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, target_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      caller.id,
+      newUser.id,
+      "user.created",
+      "users",
+      JSON.stringify({
+        name,
+        email,
+        role,
+      }),
+    ],
+  );
+
+  return {
+    id: newUser.id,
+    name: newUser.name,
+    email: newUser.email,
+    role: role,
+    status: newUser.status,
+    created_at: newUser.created_at,
   };
 };

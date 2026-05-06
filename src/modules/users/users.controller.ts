@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utlis/asyncHandler";
 import { sendResponse } from "../../utlis/apiResponse";
-import { getAllUsers, getUserById } from "./users.service";
+import { createUser, getAllUsers, getUserById } from "./users.service";
 
 export const getAllUsersController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -26,5 +26,18 @@ export const getUserByIdController = asyncHandler(
     };
     const user = await getUserById(id, caller);
     sendResponse(res, 200, "User fetched successfully", { user });
+  },
+);
+
+export const createUserController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const caller = {
+      id: req.user!.id,
+      role: req.user!.role,
+    };
+
+    const user = await createUser(req.body, caller);
+
+    sendResponse(res, 201, "User created successfully", { user });
   },
 );

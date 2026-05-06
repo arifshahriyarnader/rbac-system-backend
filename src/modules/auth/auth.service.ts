@@ -7,7 +7,7 @@ import {
   verifyRefreshToken,
 } from "../../utlis/tokens";
 import { LoginInput } from "./auth.types";
-import { th } from "zod/locales";
+
 
 export const login = async (data: LoginInput, ip?: string) => {
   const { email, password } = data;
