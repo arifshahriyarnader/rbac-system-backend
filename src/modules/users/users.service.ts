@@ -1,8 +1,9 @@
 import bcrypt from "bcrypt";
 import { databaseConnection } from "../../database/connection";
 import { ApiError } from "../../utlis/ApiError";
-import { CreatedUserRow, UserRow } from "./users.types";
+import { CreatedUserRow, UpdatedUserRow, UserRow } from "./users.types";
 import { CreateUserInput } from "./validators/createUser.validator";
+import { UpdateUserInput } from "./validators/updateUser.validator";
 
 export const getAllUsers = async (caller: { id: string; role: string }) => {
   if (caller.role === "admin") {
@@ -239,4 +240,182 @@ export const createUser = async (
     managerId: assignedManagerId,
     created_at: newUser.created_at,
   };
+};
+
+export const updateUser = async (
+  userId: string,
+  data: UpdateUserInput,
+  caller: {
+    id: string;
+    role: string;
+  },
+) => {
+  const { name, email, password, role, managerId } = data;
+
+  const existingResult = await databaseConnection.query(
+    `SELECT
+      u.id,
+      u.name,
+      u.email,
+      u.status,
+      u.manager_id,
+      r.name AS role
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const existing = existingResult.rows[0];
+
+  if (!existing) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (userId === caller.id) {
+    throw new ApiError(400, "You cannot update your own account here");
+  }
+
+  if (caller.role === "manager") {
+    if (existing.manager_id !== caller.id) {
+      throw new ApiError(403, "Access denied — this user is not in your team");
+    }
+
+    if (existing.role === "admin" || existing.role === "manager") {
+      throw new ApiError(
+        403,
+        "Managers cannot update admin or manager accounts",
+      );
+    }
+
+    if (role || managerId) {
+      throw new ApiError(
+        403,
+        "Managers cannot change role or manager assignment",
+      );
+    }
+  }
+
+  if (email && email !== existing.email) {
+    const emailCheck = await databaseConnection.query(
+      `SELECT id FROM users
+       WHERE email = $1
+       AND id != $2`,
+      [email, userId],
+    );
+
+    if (emailCheck.rows.length > 0) {
+      throw new ApiError(409, "Email already in use");
+    }
+  }
+
+  let newRoleId: string | null = null;
+
+  if (role) {
+    const roleResult = await databaseConnection.query(
+      `SELECT id FROM roles WHERE name = $1`,
+      [role],
+    );
+
+    if (!roleResult.rows[0]) {
+      throw new ApiError(400, "Invalid role specified");
+    }
+
+    newRoleId = roleResult.rows[0].id;
+  }
+
+  if (managerId) {
+    const managerCheck = await databaseConnection.query(
+      `SELECT u.id
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE u.id = $1
+       AND r.name = 'manager'
+       AND u.status = 'active'`,
+      [managerId],
+    );
+
+    if (managerCheck.rows.length === 0) {
+      throw new ApiError(404, "Manager not found or is not an active manager");
+    }
+  }
+
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (name) {
+    fields.push(`name = $${paramIndex}`);
+    values.push(name);
+    paramIndex++;
+  }
+
+  if (email) {
+    fields.push(`email = $${paramIndex}`);
+    values.push(email);
+    paramIndex++;
+  }
+
+  if (password) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    fields.push(`password_hash = $${paramIndex}`);
+    values.push(passwordHash);
+    paramIndex++;
+  }
+
+  if (newRoleId) {
+    fields.push(`role_id = $${paramIndex}`);
+    values.push(newRoleId);
+    paramIndex++;
+  }
+
+  if (managerId) {
+    fields.push(`manager_id = $${paramIndex}`);
+    values.push(managerId);
+    paramIndex++;
+  }
+
+  fields.push(`updated_at = NOW()`);
+  values.push(userId);
+  const updatedResult = await databaseConnection.query<UpdatedUserRow>(
+    `UPDATE users
+     SET ${fields.join(", ")}
+     WHERE id = $${paramIndex}
+     RETURNING
+       id,
+       name,
+       email,
+       status,
+       updated_at`,
+    values,
+  );
+
+  const updatedUser = updatedResult.rows[0];
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, target_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      caller.id,
+      userId,
+      "user.updated",
+      "users",
+      JSON.stringify({
+        old: {
+          name: existing.name,
+          email: existing.email,
+          role: existing.role,
+          managerId: existing.manager_id,
+        },
+        new: {
+          name: name ?? existing.name,
+          email: email ?? existing.email,
+          role: role ?? existing.role,
+          managerId: managerId ?? existing.manager_id,
+        },
+      }),
+    ],
+  );
+
+  return updatedUser;
 };

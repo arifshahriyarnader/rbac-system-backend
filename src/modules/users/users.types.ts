@@ -22,3 +22,14 @@ export interface CreatedUserRow {
   status: string;
   created_at: Date;
 }
+
+export interface UpdatedUserRow {
+  id:         string;
+  name:       string;
+  email:      string;
+  password:   string;
+  role:       string;
+  managerId: string;
+  status:     string;
+  updated_at: Date;
+}

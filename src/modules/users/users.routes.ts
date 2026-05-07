@@ -5,9 +5,11 @@ import {
   createUserController,
   getAllUsersController,
   getUserByIdController,
+  updateUserController,
 } from "./users.controller";
 import { createUserSchema } from "./validators/createUser.validator";
 import { validate } from "../../middlewares/validate";
+import { updateUserSchema } from "./validators/updateUser.validator";
 
 const router = Router();
 
@@ -24,6 +26,12 @@ router.post(
   requirePermission("manage:users"),
   validate(createUserSchema),
   createUserController,
+);
+router.patch(
+  "/:id",
+  requirePermission("manage:users"),
+  validate(updateUserSchema),
+  updateUserController,
 );
 
 export default router;
