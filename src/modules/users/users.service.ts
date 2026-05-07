@@ -128,12 +128,45 @@ export const createUser = async (
     role: string;
   },
 ) => {
-  const { name, email, password, role } = data;
+  const { name, email, password, role, managerId } = data;
 
-  if (caller.role === "manager") {
+  if (caller.role === "manager" && role === "manager") {
+    throw new ApiError(403, "Managers can only create agents or customers");
+  }
+
+  let assignedManagerId: string | null = null;
+  if (caller.role === "admin") {
     if (role === "manager") {
-      throw new ApiError(403, "Managers can only create agents or customers");
+      assignedManagerId = null;
+    } else {
+      if (!managerId) {
+        throw new ApiError(
+          400,
+          "managerId is required when creating agent or customer",
+        );
+      }
+
+      const managerCheck = await databaseConnection.query(
+        `SELECT u.id
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.id = $1
+         AND r.name = 'manager'
+         AND u.status = 'active'`,
+        [managerId],
+      );
+
+      if (managerCheck.rows.length === 0) {
+        throw new ApiError(
+          404,
+          "Manager not found or is not an active manager",
+        );
+      }
+
+      assignedManagerId = managerId;
     }
+  } else if (caller.role === "manager") {
+    assignedManagerId = caller.id;
   }
 
   const existingUser = await databaseConnection.query(
@@ -174,14 +207,7 @@ export const createUser = async (
       email,
       status,
       created_at`,
-    [
-      name,
-      email,
-      passwordHash,
-      roleRow.id,
-      caller.role === "manager" ? caller.id : null,
-      caller.id,
-    ],
+    [name, email, passwordHash, roleRow.id, assignedManagerId, caller.id],
   );
 
   const newUser = newUserResult.rows[0];
@@ -199,6 +225,7 @@ export const createUser = async (
         name,
         email,
         role,
+        assignedManagerId,
       }),
     ],
   );
@@ -209,6 +236,7 @@ export const createUser = async (
     email: newUser.email,
     role: role,
     status: newUser.status,
+    managerId: assignedManagerId,
     created_at: newUser.created_at,
   };
 };
