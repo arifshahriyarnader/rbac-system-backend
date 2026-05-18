@@ -1,7 +1,13 @@
 import bcrypt from "bcrypt";
 import { databaseConnection } from "../../database/connection";
 import { ApiError } from "../../utlis/ApiError";
-import { CreatedUserRow, UpdatedUserRow, UserRow } from "./users.types";
+import {
+  CreatedUserRow,
+  StatusUpdatedUserRow,
+  UpdatedUserRow,
+  UserRow,
+  UserStatus,
+} from "./users.types";
 import { CreateUserInput } from "./validators/createUser.validator";
 import { UpdateUserInput } from "./validators/updateUser.validator";
 
@@ -413,6 +419,108 @@ export const updateUser = async (
           role: role ?? existing.role,
           managerId: managerId ?? existing.manager_id,
         },
+      }),
+    ],
+  );
+
+  return updatedUser;
+};
+
+export const updateUserStatus = async (
+  userId: string,
+  newStatus: UserStatus,
+  caller: {
+    id: string;
+    role: string;
+  },
+) => {
+  const existingResult = await databaseConnection.query(
+    `SELECT
+      u.id,
+      u.name,
+      u.email,
+      u.status,
+      u.manager_id,
+      r.name AS role
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const existing = existingResult.rows[0];
+
+  if (!existing) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (userId === caller.id) {
+    throw new ApiError(400, "You cannot change your own status");
+  }
+
+  if (existing.role === "admin") {
+    throw new ApiError(403, "Admin status cannot be changed");
+  }
+
+  if (caller.role === "manager") {
+    if (existing.manager_id !== caller.id) {
+      throw new ApiError(403, "Access denied — this user is not in your team");
+    }
+
+    if (existing.role === "manager") {
+      throw new ApiError(403, "Managers cannot change other manager status");
+    }
+  }
+
+  if (existing.status === newStatus) {
+    throw new ApiError(400, `User is already ${newStatus}`);
+  }
+
+  const updatedResult = await databaseConnection.query<StatusUpdatedUserRow>(
+    `UPDATE users
+     SET
+       status     = $1,
+       updated_at = NOW()
+     WHERE id = $2
+     RETURNING
+       id,
+       name,
+       email,
+       status,
+       updated_at`,
+    [newStatus, userId],
+  );
+
+  const updatedUser = updatedResult.rows[0];
+
+  if (newStatus === "suspended" || newStatus === "banned") {
+    await databaseConnection.query(
+      `UPDATE sessions
+       SET is_revoked = true
+       WHERE user_id = $1
+       AND is_revoked = false`,
+      [userId],
+    );
+  }
+
+  const actionMap: Record<UserStatus, string> = {
+    suspended: "user.suspended",
+    banned: "user.banned",
+    active: "user.activated",
+  };
+
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, target_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      caller.id,
+      userId,
+      actionMap[newStatus],
+      "users",
+      JSON.stringify({
+        old_status: existing.status,
+        new_status: newStatus,
       }),
     ],
   );

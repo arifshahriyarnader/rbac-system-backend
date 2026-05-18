@@ -6,6 +6,7 @@ import {
   getAllUsers,
   getUserById,
   updateUser,
+  updateUserStatus,
 } from "./users.service";
 
 export const getAllUsersController = asyncHandler(
@@ -59,5 +60,38 @@ export const updateUserController = asyncHandler(
     const user = await updateUser(id, req.body, caller);
 
     sendResponse(res, 200, "User updated successfully", { user });
+  },
+);
+
+export const suspendUserController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const user = await updateUserStatus(id, "suspended", caller);
+
+    sendResponse(res, 200, "User suspended successfully", { user });
+  },
+);
+
+export const banUserController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const user = await updateUserStatus(id, "banned", caller);
+
+    sendResponse(res, 200, "User banned successfully", { user });
+  },
+);
+
+export const activateUserController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const user = await updateUserStatus(id, "active", caller);
+
+    sendResponse(res, 200, "User activated successfully", { user });
   },
 );

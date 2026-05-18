@@ -24,12 +24,22 @@ export interface CreatedUserRow {
 }
 
 export interface UpdatedUserRow {
-  id:         string;
-  name:       string;
-  email:      string;
-  password:   string;
-  role:       string;
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: string;
   managerId: string;
-  status:     string;
+  status: string;
   updated_at: Date;
 }
+
+export interface StatusUpdatedUserRow {
+  id: string;
+  name: string;
+  email: string;
+  status: UserStatus;
+  updated_at: Date;
+}
+
+export type UserStatus = "active" | "suspended" | "banned";
