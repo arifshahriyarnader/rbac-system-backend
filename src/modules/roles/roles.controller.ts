@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { sendResponse } from "../../utlis/apiResponse";
 import { asyncHandler } from "../../utlis/asyncHandler";
-import { getAllRoles, getRoleById } from "./roles.service";
+import { getAllRoles, getRoleById, getRolePermissions } from "./roles.service";
 
 export const getAllRolesController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -17,3 +17,11 @@ export const getRoleByIdController = asyncHandler(
         sendResponse(res, 200, "Role fetched successfully", { role });
     }
 )
+
+export const getRolePermissionsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id   = req.params.id as string;
+    const data = await getRolePermissions(id);
+    sendResponse(res, 200, "Role permissions fetched successfully", data);
+  }
+);
