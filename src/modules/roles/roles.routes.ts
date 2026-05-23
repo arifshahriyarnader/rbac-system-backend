@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  assignPermissionToRoleController,
   getAllRolesController,
   getRoleByIdController,
   getRolePermissionsController,
@@ -21,6 +22,11 @@ router.get(
   "/:id/permissions",
   requirePermission("manage:permissions"),
   getRolePermissionsController,
+);
+router.post(
+  "/:id/permissions",
+  requirePermission("manage:permissions"),
+  assignPermissionToRoleController,
 );
 
 export default router;
