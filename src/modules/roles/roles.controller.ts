@@ -6,6 +6,7 @@ import {
   getAllRoles,
   getRoleById,
   getRolePermissions,
+  removePermissionFromRole,
 } from "./roles.service";
 import { ApiError } from "../../utlis/ApiError";
 
@@ -49,5 +50,21 @@ export const assignPermissionToRoleController = asyncHandler(
     const result = await assignPermissionToRole(roleId, permissionId, caller);
 
     sendResponse(res, 201, result.message, result);
+  },
+);
+
+export const removePermissionFromRoleController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const roleId = req.params.id as string;
+    const permissionId = req.params.permId as string;
+
+    const caller = {
+      id: req.user!.id,
+      role: req.user!.role,
+    };
+
+    const result = await removePermissionFromRole(roleId, permissionId, caller);
+
+    sendResponse(res, 200, result.message, result);
   },
 );

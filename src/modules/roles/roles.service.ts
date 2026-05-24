@@ -170,3 +170,78 @@ export const assignPermissionToRole = async (
     permission: permission.atom,
   };
 };
+
+export const removePermissionFromRole = async (
+  roleId: string,
+  permissionId: string,
+  caller: {
+    id: string;
+    role: string;
+  },
+) => {
+  const roleResult = await databaseConnection.query<RoleRow>(
+    `SELECT id, name FROM roles WHERE id = $1`,
+    [roleId],
+  );
+
+  const role = roleResult.rows[0];
+
+  if (!role) {
+    throw new ApiError(404, "Role not found");
+  }
+
+  if (role.name === "admin") {
+    throw new ApiError(403, "Admin role permissions cannot be modified");
+  }
+
+  if (caller.role === "manager" && role.name === "manager") {
+    throw new ApiError(403, "Managers cannot modify manager role permissions");
+  }
+
+  const existingResult = await databaseConnection.query(
+    `SELECT
+      rp.id,
+      p.atom
+     FROM role_permissions rp
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE rp.role_id = $1
+     AND rp.permission_id = $2`,
+    [roleId, permissionId],
+  );
+
+  const existing = existingResult.rows[0];
+
+  if (!existing) {
+    throw new ApiError(404, "Permission not assigned to this role");
+  }
+
+  await databaseConnection.query(
+    `DELETE FROM role_permissions
+     WHERE role_id = $1
+     AND permission_id = $2`,
+    [roleId, permissionId],
+  );
+
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      caller.id,
+      "role.permission_removed",
+      "roles",
+      JSON.stringify({
+        roleId,
+        roleName: role.name,
+        permissionId,
+        permissionAtom: existing.atom,
+      }),
+    ],
+  );
+
+  return {
+    message: "Permission removed successfully",
+    role: role.name,
+    permission: existing.atom,
+  };
+};
