@@ -527,3 +527,93 @@ export const updateUserStatus = async (
 
   return updatedUser;
 };
+
+export const getUserPermissions = async (
+  userId: string,
+  caller: { id: string; role: string },
+) => {
+  const userResult = await databaseConnection.query(
+    `SELECT
+      u.id,
+      u.name,
+      u.manager_id,
+      r.name AS role
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const user = userResult.rows[0];
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (caller.role === "manager") {
+    if (user.manager_id !== caller.id) {
+      throw new ApiError(403, "Access denied — this user is not in your team");
+    }
+  }
+
+  const roleDefaultsResult = await databaseConnection.query(
+    `SELECT
+      p.id,
+      p.atom,
+      p.module,
+      p.description
+     FROM permissions p
+     JOIN role_permissions rp ON rp.permission_id = p.id
+     JOIN users u             ON u.role_id = rp.role_id
+     WHERE u.id = $1
+     ORDER BY p.module, p.atom`,
+    [userId],
+  );
+
+  const overridesResult = await databaseConnection.query(
+    `SELECT
+      up.id,
+      up.granted,
+      up.updated_at,
+      p.id          AS permission_id,
+      p.atom,
+      p.module,
+      p.description,
+      cb.name       AS granted_by_name
+     FROM user_permissions up
+     JOIN permissions p ON p.id  = up.permission_id
+     LEFT JOIN users cb ON cb.id = up.granted_by
+     WHERE up.user_id = $1
+     ORDER BY p.module, p.atom`,
+    [userId],
+  );
+
+  const resolvedResult = await databaseConnection.query(
+    `SELECT DISTINCT p.atom
+     FROM permissions p
+     JOIN role_permissions rp ON rp.permission_id = p.id
+     JOIN users u             ON u.role_id = rp.role_id
+     LEFT JOIN user_permissions up
+       ON up.permission_id = p.id
+       AND up.user_id = $1
+     WHERE u.id = $1
+     AND COALESCE(up.granted, true) = true`,
+    [userId],
+  );
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+    },
+    roleDefaults: roleDefaultsResult.rows,
+    overrides: overridesResult.rows,
+    resolved: resolvedResult.rows.map((r: { atom: string }) => r.atom),
+    summary: {
+      totalRoleDefaults: roleDefaultsResult.rows.length,
+      totalOverrides: overridesResult.rows.length,
+      totalResolved: resolvedResult.rows.length,
+    },
+  };
+};

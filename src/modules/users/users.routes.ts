@@ -9,6 +9,7 @@ import {
   suspendUserController,
   banUserController,
   activateUserController,
+  getUserPermissionsController,
 } from "./users.controller";
 import { createUserSchema } from "./validators/createUser.validator";
 import { validate } from "../../middlewares/validate";
@@ -46,6 +47,12 @@ router.patch(
   "/:id/activate",
   requirePermission("manage:users"),
   activateUserController,
+);
+
+router.get(
+  "/:id/permissions",
+  requirePermission("manage:permissions"),
+  getUserPermissionsController,
 );
 
 export default router;

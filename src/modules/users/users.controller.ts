@@ -5,6 +5,7 @@ import {
   createUser,
   getAllUsers,
   getUserById,
+  getUserPermissions,
   updateUser,
   updateUserStatus,
 } from "./users.service";
@@ -94,4 +95,21 @@ export const activateUserController = asyncHandler(
 
     sendResponse(res, 200, "User activated successfully", { user });
   },
+);
+
+export const getUserPermissionsController = asyncHandler(
+  async (req: Request, res: Response) => {
+
+    const userId = req.params.id as string;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const data = await getUserPermissions(userId, caller);
+
+    sendResponse(
+      res,
+      200,
+      "User permissions fetched successfully",
+      data
+    );
+  }
 );
