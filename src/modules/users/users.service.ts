@@ -722,3 +722,73 @@ export const overrideUserPermission = async (
     granted,
   };
 };
+
+export const removeUserPermissionOverride = async (
+  userId: string,
+  permissionId: string,
+  caller: { id: string; role: string },
+) => {
+  const userResult = await databaseConnection.query(
+    `SELECT u.id, u.name, u.manager_id
+     FROM users u
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const user = userResult.rows[0];
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (caller.role === "manager") {
+    if (user.manager_id !== caller.id) {
+      throw new ApiError(403, "Access denied — this user is not in your team");
+    }
+  }
+
+  const overrideResult = await databaseConnection.query(
+    `SELECT
+      up.id,
+      p.atom
+     FROM user_permissions up
+     JOIN permissions p ON p.id = up.permission_id
+     WHERE up.user_id       = $1
+     AND   up.permission_id = $2`,
+    [userId, permissionId],
+  );
+
+  const override = overrideResult.rows[0];
+
+  if (!override) {
+    throw new ApiError(404, "No permission override found for this user");
+  }
+
+  await databaseConnection.query(
+    `DELETE FROM user_permissions
+     WHERE user_id       = $1
+     AND   permission_id = $2`,
+    [userId, permissionId],
+  );
+
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, target_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      caller.id,
+      userId,
+      "permission.override_removed",
+      "permissions",
+      JSON.stringify({
+        permissionAtom: override.atom,
+        note: "User falls back to role default",
+      }),
+    ],
+  );
+
+  return {
+    atom: override.atom,
+    message: `Override removed — ${user.name} falls back to role default for ${override.atom}`,
+  };
+};

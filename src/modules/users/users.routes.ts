@@ -11,6 +11,7 @@ import {
   activateUserController,
   getUserPermissionsController,
   overrideUserPermissionController,
+  removeUserPermissionOverrideController,
 } from "./users.controller";
 import { createUserSchema } from "./validators/createUser.validator";
 import { validate } from "../../middlewares/validate";
@@ -62,6 +63,12 @@ router.post(
   requirePermission("manage:permissions"),
   validate(userPermissionSchema),
   overrideUserPermissionController,
+);
+
+router.delete(
+  "/:id/permissions/:permId",
+  requirePermission("manage:permissions"),
+  removeUserPermissionOverrideController,
 );
 
 export default router;

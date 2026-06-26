@@ -7,6 +7,7 @@ import {
   getUserById,
   getUserPermissions,
   overrideUserPermission,
+  removeUserPermissionOverride,
   updateUser,
   updateUserStatus,
 } from "./users.service";
@@ -100,25 +101,18 @@ export const activateUserController = asyncHandler(
 
 export const getUserPermissionsController = asyncHandler(
   async (req: Request, res: Response) => {
-
     const userId = req.params.id as string;
     const caller = { id: req.user!.id, role: req.user!.role };
 
     const data = await getUserPermissions(userId, caller);
 
-    sendResponse(
-      res,
-      200,
-      "User permissions fetched successfully",
-      data
-    );
-  }
+    sendResponse(res, 200, "User permissions fetched successfully", data);
+  },
 );
 
 export const overrideUserPermissionController = asyncHandler(
   async (req: Request, res: Response) => {
-
-    const userId                    = req.params.id as string;
+    const userId = req.params.id as string;
     const { permissionId, granted } = req.body;
     const caller = { id: req.user!.id, role: req.user!.role };
 
@@ -126,7 +120,7 @@ export const overrideUserPermissionController = asyncHandler(
       userId,
       permissionId,
       granted,
-      caller
+      caller,
     );
 
     sendResponse(
@@ -135,7 +129,23 @@ export const overrideUserPermissionController = asyncHandler(
       granted
         ? `Permission ${result.atom} granted successfully`
         : `Permission ${result.atom} revoked successfully`,
-      result
+      result,
     );
-  }
+  },
+);
+
+export const removeUserPermissionOverrideController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.params.id as string;
+    const permissionId = req.params.permId as string;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const result = await removeUserPermissionOverride(
+      userId,
+      permissionId,
+      caller,
+    );
+
+    sendResponse(res, 200, result.message, result);
+  },
 );
