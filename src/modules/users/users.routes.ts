@@ -10,10 +10,12 @@ import {
   banUserController,
   activateUserController,
   getUserPermissionsController,
+  overrideUserPermissionController,
 } from "./users.controller";
 import { createUserSchema } from "./validators/createUser.validator";
 import { validate } from "../../middlewares/validate";
 import { updateUserSchema } from "./validators/updateUser.validator";
+import { userPermissionSchema } from "./validators/permissionUser.validator";
 
 const router = Router();
 
@@ -53,6 +55,13 @@ router.get(
   "/:id/permissions",
   requirePermission("manage:permissions"),
   getUserPermissionsController,
+);
+
+router.post(
+  "/:id/permissions",
+  requirePermission("manage:permissions"),
+  validate(userPermissionSchema),
+  overrideUserPermissionController,
 );
 
 export default router;

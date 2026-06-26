@@ -6,6 +6,7 @@ import {
   getAllUsers,
   getUserById,
   getUserPermissions,
+  overrideUserPermission,
   updateUser,
   updateUserStatus,
 } from "./users.service";
@@ -110,6 +111,31 @@ export const getUserPermissionsController = asyncHandler(
       200,
       "User permissions fetched successfully",
       data
+    );
+  }
+);
+
+export const overrideUserPermissionController = asyncHandler(
+  async (req: Request, res: Response) => {
+
+    const userId                    = req.params.id as string;
+    const { permissionId, granted } = req.body;
+    const caller = { id: req.user!.id, role: req.user!.role };
+
+    const result = await overrideUserPermission(
+      userId,
+      permissionId,
+      granted,
+      caller
+    );
+
+    sendResponse(
+      res,
+      200,
+      granted
+        ? `Permission ${result.atom} granted successfully`
+        : `Permission ${result.atom} revoked successfully`,
+      result
     );
   }
 );

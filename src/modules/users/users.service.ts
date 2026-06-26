@@ -617,3 +617,108 @@ export const getUserPermissions = async (
     },
   };
 };
+
+export const overrideUserPermission = async (
+  userId: string,
+  permissionId: string,
+  granted: boolean,
+  caller: { id: string; role: string },
+) => {
+  const userResult = await databaseConnection.query(
+    `SELECT
+      u.id,
+      u.name,
+      u.manager_id,
+      r.name AS role
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const user = userResult.rows[0];
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (userId === caller.id) {
+    throw new ApiError(400, "You cannot override your own permissions");
+  }
+
+  if (caller.role === "manager") {
+    if (user.manager_id !== caller.id) {
+      throw new ApiError(403, "Access denied — this user is not in your team");
+    }
+  }
+
+  const permissionResult = await databaseConnection.query(
+    `SELECT id, atom FROM permissions WHERE id = $1`,
+    [permissionId],
+  );
+
+  const permission = permissionResult.rows[0];
+
+  if (!permission) {
+    throw new ApiError(404, "Permission not found");
+  }
+
+  if (granted) {
+    const callerHasPermission = await databaseConnection.query(
+      `SELECT DISTINCT p.atom
+       FROM permissions p
+       JOIN role_permissions rp ON rp.permission_id = p.id
+       JOIN users u             ON u.role_id = rp.role_id
+       LEFT JOIN user_permissions up
+         ON up.permission_id = p.id
+         AND up.user_id = $1
+       WHERE u.id = $1
+       AND p.id   = $2
+       AND COALESCE(up.granted, true) = true`,
+      [caller.id, permissionId],
+    );
+
+    if (callerHasPermission.rows.length === 0) {
+      throw new ApiError(
+        403,
+        "Grant ceiling violation — you cannot grant a permission you don't have",
+      );
+    }
+  }
+
+  await databaseConnection.query(
+    `INSERT INTO user_permissions
+      (user_id, permission_id, granted, granted_by)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, permission_id)
+     DO UPDATE SET
+       granted    = $3,
+       granted_by = $4,
+       updated_at = NOW()`,
+    [userId, permissionId, granted, caller.id],
+  );
+
+  await databaseConnection.query(
+    `INSERT INTO audit_logs
+      (actor_id, target_id, action, module, metadata)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      caller.id,
+      userId,
+      granted ? "permission.granted" : "permission.revoked",
+      "permissions",
+      JSON.stringify({
+        permissionAtom: permission.atom,
+        targetUser: user.name,
+        granted,
+      }),
+    ],
+  );
+
+  return {
+    userId,
+    permissionId,
+    atom: permission.atom,
+    granted,
+  };
+};
